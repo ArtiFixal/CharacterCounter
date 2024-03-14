@@ -395,7 +395,7 @@ writeLoop:
 	push OFFSET resultFormat
 	push OFFSET resultBuff
 	call wsprintf
-	; Clear stack after wsprintf
+	; Correct stack pointer after wsprintf
 	add	esp,20
 
 	IFDEF __UNICODE__
@@ -426,6 +426,7 @@ endWrite:
 	push OFFSET totalFormat
 	push OFFSET resultBuff
 	call wsprintf
+	add esp,12
 
 	IFDEF __UNICODE__
 		; Calc wchar buff size
@@ -456,6 +457,7 @@ printError PROC
 	push OFFSET errorMsg
 	push OFFSET errorBuf
 	call wsprintf
+	add esp,12
 
 	push 0
 	push OFFSET chOut
