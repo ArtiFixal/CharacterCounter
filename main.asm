@@ -154,7 +154,7 @@ _DATA SEGMENT
 	text				<totalFormat>,"Total characters: %ld",1
 	; Buffer used to format result string
 	resultBuff			TCHAR	90 dup(0)
-	number				DD		?
+	numberCount			DD		?
 	percentage			REAL10	?
 	fpuBuff				DB		16 dup(0)
 	fpuPrecision		DD		2
@@ -238,8 +238,8 @@ main ENDP
 countCharacters PROC
 	LOCAL fileHandle :HANDLE
 
-	; Total character count - edx
-	push 0
+	; Total character count
+	xor ebx,ebx
 
 	push 0
 	push FILE_ATTRIBUTE_NORMAL
@@ -263,22 +263,16 @@ readLoop:
 	push fileHandle
 	call ReadFile
 	mov ecx,charsRead
+	; inc totalCharacterRead
+	add ebx,ecx
 	; zero eax to avoid arrayOutOfBounds
 	xor eax,eax
-	; inc totalCharacterRead
-	pop edx
-	add edx,charsRead
-	push edx
 count:
 	mov CHAR_REG,[readBuff+ecx-TYPE TCHAR]
 	; Since wchar is 2 byte dec by 1
 	IFDEF __UNICODE__
 		dec ecx
 	ENDIF
-	cmp CHAR_REG,1
-	jl noSub
-	dec eax
-noSub:
 	; Increment character occurrence in array at character index
 	inc [countArr+eax*TYPE countArr]
 	loop count
@@ -292,8 +286,7 @@ error:
 	call printError
 	jmp errorEnd
 countEnd:
-	pop edx
-	mov totalFileChars,edx
+	mov totalFileChars,ebx
 	call saveResults
 errorEnd:
 	ret
@@ -344,18 +337,17 @@ overwrite:
 		call WriteFile
 	ENDIF
 	; Zero array index register
-	xor ecx,ecx
+	xor ebx,ebx
 writeLoop:
-	push ecx
-	mov eax,[countArr+ecx*TYPE countArr]
+	mov eax,[countArr+ebx*TYPE countArr]
 	; Save only characters which occurr
 	; Bitwise check for 0
-	cmp eax,0
-	je nextResult
+	test eax,eax
+	jz nextResult
 
 	; Calc character occurrence percentage
-	mov number,eax
-	fild number
+	mov numberCount,eax
+	fild numberCount
 	fild totalFileChars
 	fdivp
 	fild hundred
@@ -379,10 +371,6 @@ writeLoop:
 		call MultiByteToWideChar
 	ENDIF
 	
-	; inc array index
-	pop ecx
-	push ecx
-	inc ecx
 	IFDEF __UNICODE__
 		; wchar buffer
 		push OFFSET uniBuff
@@ -390,8 +378,8 @@ writeLoop:
 		; ANSI buffer
 		push OFFSET fpuBuff
 	ENDIF
-	push number
-	push ecx
+	push numberCount
+	push ebx
 	push OFFSET resultFormat
 	push OFFSET resultBuff
 	call wsprintf
@@ -412,9 +400,8 @@ writeLoop:
 	call WriteFile
 
 nextResult:
-	pop ecx
-	inc ecx
-	cmp ecx,LENGTHOF countArr
+	inc ebx
+	cmp ebx,LENGTHOF countArr
 	jne writeLoop
 	jmp endWrite
 error:
@@ -449,7 +436,7 @@ saveResults ENDP
 ;
 ; Prints occurred error to the console.
 ;
-; eax - Error number.
+; eax - Error code.
 ;
 printError PROC
 	; Format string
